@@ -1,0 +1,46 @@
+services:
+  postgres_veterinaria:
+    image: postgres:16
+    container_name: postgres_veterinaria
+    restart: always
+    environment:
+      POSTGRES_DB: Sistema_Veterinario
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Inici_03
+    volumes:
+      - postgres_veterinaria_data:/var/lib/postgresql/data
+    networks:
+      - veterinaria_net
+
+  fastapi_veterinaria:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+    container_name: fastapi_veterinaria
+    restart: always
+    env_file:
+      - backend/.env
+    depends_on:
+      - postgres_veterinaria
+    networks:
+      - veterinaria_net
+
+  reflex_veterinaria:
+    build:
+      context: .
+      dockerfile: Dockerfile.reflex
+    container_name: reflex_veterinaria
+    restart: always
+    depends_on:
+      - fastapi_veterinaria
+    ports:
+      - "3000:3000"
+      - "8001:8001"
+    networks:
+      - veterinaria_net
+
+volumes:
+  postgres_veterinaria_data:
+
+networks:
+  veterinaria_net:

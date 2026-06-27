@@ -1,51 +1,29 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from google import genai
+from backend.consultas_db import obtener_propietarios, obtener_datos_completos
+from backend.gemini_service import responder_con_gemini
 
-from dotenv import load_dotenv
-import os
-
-# Cargar variables .env
-load_dotenv()
-
-# Obtener API KEY
-api_key = os.getenv("GEMINI_API_KEY")
-
-# Cliente Gemini
-client = genai.Client(api_key=api_key)
-
-# Crear app
 app = FastAPI()
 
-# Permitir conexión Reflex
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Ruta principal
-@app.get("/")
-def inicio():
-    return {"mensaje": "Backend Gemini funcionando"}
-
-# Modelo de datos
 class Pregunta(BaseModel):
     pregunta: str
 
-# Endpoint chat
-@app.post("/chat")
-async def chat(data: Pregunta):
+@app.get("/")
+def inicio():
+    return {"mensaje": "Backend funcionando correctamente"}
 
-    respuesta = client.models.generate_content(
-        model="gemini-3.1-flash-lite",
-        contents=data.pregunta
-    )
+@app.get("/propietarios")
+def listar_propietarios():
+    datos = obtener_propietarios()
+    return {"propietarios": datos}
+
+@app.post("/preguntar")
+def preguntar(data: Pregunta):
+    datos = obtener_datos_completos()
+    respuesta = responder_con_gemini(data.pregunta, datos)
 
     return {
-        "respuesta": respuesta.text
+        "pregunta": data.pregunta,
+        "respuesta": respuesta
     }

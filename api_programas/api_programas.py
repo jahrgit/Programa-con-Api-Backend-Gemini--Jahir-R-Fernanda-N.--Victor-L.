@@ -2,291 +2,287 @@ import reflex as rx
 import requests
 
 
-# ---------------- ESTADO ---------------- #
-
 class State(rx.State):
-
     pregunta: str = ""
     respuesta: str = ""
     cargando: bool = False
 
-    def set_pregunta(self, value: str):
-        self.pregunta = value
-
-    def consultar_ia(self):
-        if not self.pregunta.strip():
-            self.respuesta = " Escribe una pregunta primero."
-            return
-        self.cargando = True
-        self.respuesta = " Consultando a Gemini..."
-        yield
-        try:
-            response = requests.post(
-                "http://127.0.0.1:8000/chat",
-                json={"pregunta": self.pregunta},
-                timeout=30,
-            )
-            response.raise_for_status()
-            data = response.json()
-            self.respuesta = data.get("respuesta", "Sin respuesta del servidor.")
-        except requests.exceptions.ConnectionError:
-            self.respuesta = " Error: No se pudo conectar al servidor. ¿Está corriendo en http://127.0.0.1:8000?"
-        except requests.exceptions.Timeout:
-            self.respuesta = " Error: El servidor tardó demasiado en responder."
-        except requests.exceptions.HTTPError as e:
-            self.respuesta = f" Error HTTP: {e}"
-        except Exception as e:
-            self.respuesta = f" Error inesperado: {e}"
-        finally:
-            self.cargando = False
+    def set_pregunta(self, valor: str):
+        self.pregunta = valor
 
     def limpiar(self):
         self.pregunta = ""
         self.respuesta = ""
+
+    async def enviar_pregunta(self):
+        if not self.pregunta.strip():
+            self.respuesta = "Escribe una pregunta primero."
+            return
+
+        self.cargando = True
+        self.respuesta = "Consultando la base de datos..."
+        yield
+
+        try:
+            response = requests.post(
+                "http://fastapi_veterinaria:8000/preguntar",
+                json={"pregunta": self.pregunta},
+                timeout=60,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                self.respuesta = data.get("respuesta", "No se recibió respuesta.")
+            else:
+                self.respuesta = f"Error del servidor: {response.status_code}"
+        except Exception as e:
+            self.respuesta = f"Error de conexión: {str(e)}"
+
         self.cargando = False
 
 
-# ---------------- SVG OVNI ---------------- #
-
-def ufo_svg(color_body: str, color_dome: str, color_lights: str) -> rx.Component:
-    return rx.html(f"""
-    <svg width="52" height="36" viewBox="0 0 52 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="26" cy="18" rx="22" ry="8" fill="{color_body}" opacity="0.85"/>
-      <ellipse cx="26" cy="15" rx="12" ry="8" fill="{color_dome}"/>
-      <ellipse cx="26" cy="14" rx="7" ry="5" fill="white" opacity="0.3"/>
-      <ellipse cx="16" cy="22" rx="3" ry="2" fill="{color_lights}"/>
-      <ellipse cx="26" cy="24" rx="3" ry="2" fill="{color_lights}"/>
-      <ellipse cx="36" cy="22" rx="3" ry="2" fill="{color_lights}"/>
-      <line x1="20" y1="26" x2="18" y2="36" stroke="{color_lights}" stroke-width="1" opacity="0.5"/>
-      <line x1="26" y1="26" x2="26" y2="36" stroke="{color_lights}" stroke-width="1" opacity="0.5"/>
-      <line x1="32" y1="26" x2="34" y2="36" stroke="{color_lights}" stroke-width="1" opacity="0.5"/>
-    </svg>
-    """)
-
-
-UFOS = [
-    {"color_body": "#4F46E5", "color_dome": "#818CF8", "color_lights": "#06B6D4", "dir": "up"},
-    {"color_body": "#7C3AED", "color_dome": "#A78BFA", "color_lights": "#F472B6", "dir": "down"},
-    {"color_body": "#0891B2", "color_dome": "#22D3EE", "color_lights": "#FCD34D", "dir": "up"},
-    {"color_body": "#4F46E5", "color_dome": "#818CF8", "color_lights": "#34D399", "dir": "down"},
-    {"color_body": "#BE185D", "color_dome": "#F472B6", "color_lights": "#06B6D4", "dir": "up"},
-    {"color_body": "#065F46", "color_dome": "#10B981", "color_lights": "#FCD34D", "dir": "down"},
-]
-
-UFO_DELAYS = ["0s", "0.4s", "0.8s", "0.2s", "0.6s", "1.0s"]
-
-
-def ufo_row() -> rx.Component:
-    items = []
-    for i, ufo in enumerate(UFOS):
-        anim = "floatUp" if ufo["dir"] == "up" else "floatDown"
-        delay = UFO_DELAYS[i]
-        items.append(
-            rx.box(
-                ufo_svg(ufo["color_body"], ufo["color_dome"], ufo["color_lights"]),
-                style={
-                    "animation": f"{anim} 2.5s ease-in-out infinite",
-                    "animation_delay": delay,
-                    "display": "flex",
-                }
-            )
-        )
-    return rx.hstack(
-        *items,
-        width="100%",
-        justify="between",
-        padding_x="20px",
+def neon_icons() -> rx.Component:
+    return rx.html(
+        """
+        <div class="neon-icons">
+            <div class="paw paw-big"><span></span><span></span><span></span><span></span><i></i></div>
+            <div class="heart heart-1"></div>
+            <div class="paw paw-small"><span></span><span></span><span></span><span></span><i></i></div>
+            <div class="heart heart-2"></div>
+        </div>
+        """
     )
 
 
-# ---------------- ASTRONAUTAS ORBITANDO ---------------- #
-
-ASTRONAUT_SVG = """
-<svg width="38" height="48" viewBox="0 0 38 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <ellipse cx="19" cy="30" rx="11" ry="13" fill="#CBD5E1"/>
-  <circle cx="19" cy="14" r="11" fill="#E2E8F0"/>
-  <circle cx="19" cy="14" r="8" fill="#0F172A" opacity="0.85"/>
-  <ellipse cx="16" cy="11" rx="3" ry="2" fill="#38BDF8" opacity="0.6"/>
-  <line x1="19" y1="3" x2="19" y2="0" stroke="#94A3B8" stroke-width="2"/>
-  <circle cx="19" cy="0" r="2" fill="#F472B6"/>
-  <ellipse cx="7" cy="28" rx="4" ry="7" fill="#94A3B8" transform="rotate(-15 7 28)"/>
-  <ellipse cx="31" cy="28" rx="4" ry="7" fill="#94A3B8" transform="rotate(15 31 28)"/>
-  <circle cx="5" cy="33" r="3" fill="#CBD5E1"/>
-  <circle cx="33" cy="33" r="3" fill="#CBD5E1"/>
-  <ellipse cx="14" cy="42" rx="4" ry="5" fill="#94A3B8"/>
-  <ellipse cx="24" cy="42" rx="4" ry="5" fill="#94A3B8"/>
-  <ellipse cx="14" cy="46" rx="5" ry="2.5" fill="#64748B"/>
-  <ellipse cx="24" cy="46" rx="5" ry="2.5" fill="#64748B"/>
-  <circle cx="19" cy="28" r="3" fill="#4F46E5" opacity="0.8"/>
-  <circle cx="19" cy="28" r="1.5" fill="#818CF8"/>
-</svg>
-"""
-
-
-def astronaut_overlay() -> rx.Component:
-    css = rx.html("""
-    <style>
-    @keyframes orbitTop {
-      0%   { left: 0%;   top: 4px;  transform: rotate(0deg); }
-      100% { left: 96%;  top: 4px;  transform: rotate(0deg); }
-    }
-    @keyframes orbitRight {
-      0%   { left: calc(100% - 42px); top: 0%;   transform: rotate(90deg); }
-      100% { left: calc(100% - 42px); top: 96%;  transform: rotate(90deg); }
-    }
-    @keyframes orbitBottom {
-      0%   { left: 96%;  top: calc(100% - 52px); transform: rotate(180deg); }
-      100% { left: 0%;   top: calc(100% - 52px); transform: rotate(180deg); }
-    }
-    @keyframes orbitLeft {
-      0%   { left: 4px;  top: 96%;  transform: rotate(270deg); }
-      100% { left: 4px;  top: 0%;   transform: rotate(270deg); }
-    }
-    .astronaut-orbit {
-      position: absolute;
-      width: 38px;
-      height: 48px;
-      animation-duration: 8s;
-      animation-timing-function: linear;
-      animation-iteration-count: infinite;
-    }
-    .a0 { animation-name: orbitTop;    animation-delay: 0s; }
-    .a1 { animation-name: orbitRight;  animation-delay: 2s; }
-    .a2 { animation-name: orbitBottom; animation-delay: 4s; }
-    .a3 { animation-name: orbitLeft;   animation-delay: 6s; }
-    </style>
-    """)
-
-    astronauts = rx.html(f"""
-    <div class="astronaut-orbit a0">{ASTRONAUT_SVG}</div>
-    <div class="astronaut-orbit a1">{ASTRONAUT_SVG}</div>
-    <div class="astronaut-orbit a2">{ASTRONAUT_SVG}</div>
-    <div class="astronaut-orbit a3">{ASTRONAUT_SVG}</div>
-    """)
-
-    return rx.fragment(css, astronauts)
-
-
-# ---------------- DISEÑO ---------------- #
-
 def index() -> rx.Component:
+    return rx.fragment(
+        rx.html(
+            """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
 
-    animations_css = rx.html("""
-    <style>
-    @keyframes floatUp {
-      0%, 100% { transform: translateY(0px); }
-      50%       { transform: translateY(-28px); }
-    }
-    @keyframes floatDown {
-      0%, 100% { transform: translateY(0px); }
-      50%       { transform: translateY(28px); }
-    }
-    </style>
-    """)
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; min-height: 100vh; font-family: 'Montserrat', sans-serif; }
 
-    return rx.box(
+.main-bg {
+    min-height: 100vh;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    color: white;
+    background:
+        radial-gradient(circle at 18% 57%, rgba(0, 92, 255, .72) 0%, rgba(0, 63, 190, .45) 15%, rgba(0,0,0,0) 34%),
+        radial-gradient(circle at 75% 88%, rgba(0, 72, 255, .56) 0%, rgba(0, 46, 150, .35) 20%, rgba(0,0,0,0) 42%),
+        radial-gradient(circle at 58% 35%, rgba(0, 18, 75, .85) 0%, rgba(0,0,0,0) 36%),
+        linear-gradient(135deg, #00020b 0%, #020414 42%, #001646 100%);
+}
 
-        astronaut_overlay(),
+.main-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(135deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.25) 24%, rgba(0,0,0,0) 42%),
+        linear-gradient(25deg, rgba(0,0,0,.95) 0%, rgba(0,0,0,0) 38%);
+    pointer-events: none;
+}
 
-        rx.center(
-            rx.vstack(
+.main-bg::after {
+    content: "";
+    position: absolute;
+    width: 1100px;
+    height: 420px;
+    left: 12%;
+    bottom: 0;
+    background: radial-gradient(ellipse at center, rgba(0, 78, 255, .50), rgba(0,0,0,0) 68%);
+    transform: rotate(-8deg);
+    filter: blur(10px);
+    pointer-events: none;
+}
 
-                animations_css,
+.navbar {
+    position: relative;
+    z-index: 5;
+    height: 92px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 9vw;
+}
 
-                rx.heading(
-                    "Arpía IA",
-                    size="9",
-                    color="white",
-                ),
+.brand, .nav-links, .nav-actions { display: flex; align-items: center; }
+.brand { gap: 12px; font-weight: 700; letter-spacing: 1px; font-size: 18px; }
+.brand-circle { width: 24px; height: 24px; border: 3px solid white; border-radius: 50%; }
+.nav-links { gap: 72px; font-size: 14px; font-weight: 700; }
+.nav-actions { gap: 42px; font-weight: 700; }
+.search-icon { font-size: 28px; line-height: 1; }
+.sign-btn { border: 1px solid white; border-radius: 18px; padding: 8px 30px; font-size: 14px; }
 
-                rx.text(
-                    "Consulta cualquier cosa usando Gemini IA",
-                    color="#94A3B8",
-                    size="4",
-                ),
+.animals-img {
+    position: absolute;
+    z-index: 3;
+    left: 0;
+    bottom: 0;
+    width: min(31vw, 430px);
+    max-height: 90vh;
+    object-fit: contain;
+    object-position: left bottom;
+    filter: drop-shadow(0 0 28px rgba(0, 102, 255, .42));
+}
 
-                ufo_row(),
+.center-content {
+    position: relative;
+    z-index: 4;
+    width: min(560px, 92vw);
+    margin: 5vh auto 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
 
-                rx.text_area(
-                    placeholder="Escribe tu pregunta...",
-                    value=State.pregunta,
-                    on_change=State.set_pregunta,
-                    width="100%",
-                    height="120px",
-                    background_color="#1E1E1E",
-                    color="white",
-                    border="2px solid #4F46E5",
-                    border_radius="15px",
-                    disabled=State.cargando,
-                ),
+.title-box { text-align: center; margin-bottom: 4px; }
+.title-box h1 {
+    margin: 0;
+    font-size: clamp(34px, 4vw, 58px);
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-shadow: 0 0 26px rgba(0, 132, 255, .6);
+}
+.title-box h1 span { color: #35a9ff; }
+.title-box p { margin: 10px 0 0; color: rgba(224, 243, 255, .72); font-weight: 600; letter-spacing: 5px; font-size: 12px; }
 
-                rx.hstack(
-                    rx.button(
-                        rx.cond(
-                            State.cargando,
-                            "⏳ Consultando...",
-                            "🚀 Consultar",
-                        ),
-                        on_click=State.consultar_ia,
-                        background_color="#4F46E5",
-                        color="white",
-                        size="3",
-                        border_radius="12px",
-                        disabled=State.cargando,
-                        cursor="pointer",
-                    ),
-                    rx.button(
-                        "🧹 Limpiar",
-                        on_click=State.limpiar,
-                        background_color="#E11D48",
-                        color="white",
-                        size="3",
-                        border_radius="12px",
-                        disabled=State.cargando,
-                        cursor="pointer",
-                    ),
-                    spacing="3",
-                ),
+.search-card, .response-card {
+    width: 100%;
+    border: 1px solid rgba(88, 178, 255, .45);
+    background: rgba(2, 10, 28, .58);
+    backdrop-filter: blur(16px);
+    border-radius: 24px;
+    box-shadow: 0 0 38px rgba(0, 104, 255, .24), inset 0 0 28px rgba(0, 90, 255, .08);
+}
+.search-card { padding: 24px; }
+.response-card { padding: 20px 24px; min-height: 150px; }
 
-                rx.box(
-                    rx.cond(
-                        State.respuesta != "",
-                        rx.text(
-                            State.respuesta,
-                            color="white",
-                            size="4",
-                            white_space="pre-wrap",
-                        ),
-                        rx.text(
-                            "La respuesta de Gemini aparecerá aquí...",
-                            color="#475569",
-                            size="4",
-                            font_style="italic",
-                        ),
-                    ),
-                    width="100%",
-                    min_height="200px",
-                    background_color="#111827",
-                    border="2px solid #06B6D4",
-                    border_radius="15px",
-                    padding="20px",
-                ),
+textarea {
+    width: 100%;
+    min-height: 112px;
+    resize: vertical;
+    border: 1px solid rgba(82, 170, 255, .38);
+    border-radius: 17px;
+    outline: none;
+    color: #eaf7ff;
+    background: rgba(0, 7, 22, .68);
+    padding: 16px 18px;
+    font-size: 15px;
+    line-height: 1.6;
+    font-family: 'Montserrat', sans-serif;
+}
+textarea:focus { border-color: #4db8ff; box-shadow: 0 0 22px rgba(45, 158, 255, .32); }
+textarea::placeholder { color: rgba(197, 229, 255, .42); }
 
-                spacing="6",
-                width="700px",
-            ),
+.btn-row { display: flex; gap: 14px; margin-top: 16px; }
+button { font-family: 'Montserrat', sans-serif; font-weight: 800; cursor: pointer; transition: .2s ease; }
+.btn-search {
+    flex: 1;
+    border: 0;
+    color: white;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #0099ff, #004fd7);
+    box-shadow: 0 0 26px rgba(0, 130, 255, .42);
+    letter-spacing: 1px;
+}
+.btn-search:hover { transform: translateY(-2px); box-shadow: 0 0 34px rgba(0, 154, 255, .64); }
+.btn-clear {
+    width: 126px;
+    color: #cfeeff;
+    border: 1px solid rgba(100, 190, 255, .56);
+    background: rgba(255,255,255,.04);
+    padding: 14px 18px;
+    border-radius: 16px;
+}
+.btn-clear:hover { background: rgba(0, 130, 255, .12); transform: translateY(-2px); }
 
-            width="100%",
-            min_height="100vh",
+.response-label { color: #72c8ff; font-size: 12px; font-weight: 800; letter-spacing: 4px; margin-bottom: 10px; }
+.response-text { white-space: pre-wrap; word-break: break-word; line-height: 1.75; color: #e9f7ff; font-size: 15px; }
+
+.neon-icons { position: absolute; z-index: 2; right: 5vw; top: 105px; width: 300px; height: 330px; }
+.paw, .heart { position: absolute; filter: drop-shadow(0 0 16px rgba(50, 165, 255, .95)); opacity: .94; animation: float 3.4s ease-in-out infinite; }
+.paw span, .paw i { position: absolute; display: block; background: #45b7ff; box-shadow: 0 0 18px #45b7ff; }
+.paw i { width: 62px; height: 46px; border-radius: 48% 48% 42% 42%; left: 34px; top: 58px; }
+.paw span { width: 26px; height: 36px; border-radius: 50%; }
+.paw span:nth-child(1) { left: 0; top: 32px; transform: rotate(-18deg); }
+.paw span:nth-child(2) { left: 36px; top: 5px; }
+.paw span:nth-child(3) { left: 76px; top: 8px; transform: rotate(15deg); }
+.paw span:nth-child(4) { left: 112px; top: 38px; transform: rotate(22deg); }
+.paw-big { right: 0; top: 0; transform: scale(.92); }
+.paw-small { right: 72px; top: 155px; transform: scale(.63); opacity: .78; }
+.heart { width: 72px; height: 72px; border: 3px solid #3aaeff; border-top: 0; border-left: 0; transform: rotate(45deg); }
+.heart::before, .heart::after { content: ""; position: absolute; border: 3px solid #3aaeff; border-radius: 50%; }
+.heart::before { width: 72px; height: 72px; left: -38px; top: 0; border-right: 0; }
+.heart::after { width: 72px; height: 72px; left: 0; top: -38px; border-bottom: 0; }
+.heart-1 { right: 20px; top: 145px; animation-delay: .8s; }
+.heart-2 { right: 135px; top: 62px; transform: rotate(45deg) scale(.42); opacity: .45; animation-delay: 1.3s; }
+
+@keyframes float { 0%,100% { margin-top: 0; } 50% { margin-top: -14px; } }
+
+@media (max-width: 900px) {
+    .navbar { padding: 0 24px; }
+    .nav-links { display: none; }
+    .animals-img { opacity: .32; width: 360px; }
+    .neon-icons { opacity: .35; right: -50px; }
+    .center-content { margin-top: 4vh; }
+}
+</style>
+"""
         ),
-
-        position="relative",
-        width="100%",
-        min_height="100vh",
-        background_color="#0F172A",
-        overflow="hidden",
+        rx.el.main(
+            rx.el.header(
+                rx.el.div(rx.el.div(class_name="brand-circle"), rx.el.span("COMPANY"), class_name="brand"),
+                rx.el.nav(
+                    rx.el.span("-"),
+                    rx.el.span("-"),
+                    rx.el.span("-"),
+                    class_name="nav-links",
+                ),
+                rx.el.div(rx.el.span("⌕", class_name="search-icon"), rx.el.div("B-vet", class_name="sign-btn"), class_name="nav-actions"),
+                class_name="navbar",
+            ),
+            rx.image(src="/sin2.png", class_name="animals-img"),
+            neon_icons(),
+            rx.el.section(
+                rx.el.div(
+                    rx.el.h1(rx.el.span("Bi"), "Vet"),
+                    rx.el.p("SISTEMA VETERINARIO IA"),
+                    class_name="title-box",
+                ),
+                rx.el.div(
+                    rx.el.textarea(
+                        placeholder="Escribe tu pregunta sobre propietarios, mascotas o consultas veterinarias...",
+                        value=State.pregunta,
+                        on_change=State.set_pregunta,
+                    ),
+                    rx.el.div(
+                        rx.el.button("BUSCAR", on_click=State.enviar_pregunta, disabled=State.cargando, class_name="btn-search"),
+                        rx.el.button("LIMPIAR", on_click=State.limpiar, class_name="btn-clear"),
+                        class_name="btn-row",
+                    ),
+                    class_name="search-card",
+                ),
+                rx.el.div(
+                    rx.el.div("RESPUESTA", class_name="response-label"),
+                    rx.el.div(
+                        rx.cond(State.cargando, "Consultando la base de datos...", State.respuesta),
+                        class_name="response-text",
+                    ),
+                    class_name="response-card",
+                ),
+                class_name="center-content",
+            ),
+            class_name="main-bg",
+        ),
     )
 
 
 app = rx.App()
-app.add_page(index)
+app.add_page(index, route="/")
